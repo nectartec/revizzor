@@ -5,3 +5,4 @@ requests
 pandas
 PyMuPDF
 pyproject
+pyproject.toml-based
