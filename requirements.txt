@@ -4,3 +4,4 @@ supabase_py
 requests
 pandas
 PyMuPDF
+pyproject
