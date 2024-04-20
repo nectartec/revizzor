@@ -6,3 +6,4 @@ pandas
 PyMuPDF
 pyproject
 httptools
+python-multipart
