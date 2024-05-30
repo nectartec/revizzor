@@ -1,9 +1,8 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
-from supabase_py import create_client
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query
+from supabase_py import create_client, Client
 import fitz  # PyMuPDF
 import pandas as pd
 import re
-from supabase_py.client import Client
 import requests
 import logging
 
@@ -22,10 +21,18 @@ logging.basicConfig(level=logging.DEBUG)
 
 # Rota para lidar com o upload do arquivo PDF
 @app.post("/upload/pdf/")
-async def upload_pdf(file: UploadFile = File(...)):
+async def upload_pdf(file: UploadFile = File(None), url: str = Query(None)):
     try:
-        # Ler o conteúdo do arquivo PDF
-        conteudo_pdf = await file.read()
+        if url:
+            # Ler o PDF a partir do link
+            response = requests.get(url)
+            response.raise_for_status()
+            conteudo_pdf = response.content
+        elif file:
+            # Ler o conteúdo do arquivo PDF
+            conteudo_pdf = await file.read()
+        else:
+            raise HTTPException(status_code=400, detail="Nenhum arquivo ou URL fornecido.")
 
         # Extrair texto do PDF
         text = extract_text_from_pdf(conteudo_pdf)
@@ -37,8 +44,8 @@ async def upload_pdf(file: UploadFile = File(...)):
         data_dict = df.to_dict(orient='records')
 
         # Inserção dos dados no Supabase
-        resposta_supabase = supabase.from_(nome_tabela).insert(data_dict).execute()          
-
+        resposta_supabase = supabase.from_(nome_tabela).insert(data_dict).execute()
+        
         # Definir o cabeçalho de autorização
         cabecalho_autorizacao = {
             "Authorization": f"Bearer {supabase_key}",
@@ -46,12 +53,18 @@ async def upload_pdf(file: UploadFile = File(...)):
         }
 
         # URL do endpoint do Supabase para upload de arquivo
-        url_upload = f"{supabase_url}/storage/v1/object/{bucket_name}/{file.filename}"
+        if file:
+            url_upload = f"{supabase_url}/storage/v1/object/{bucket_name}/{file.filename}"
+        else:
+            url_upload = f"{supabase_url}/storage/v1/object/{bucket_name}/file_from_link.pdf"
+
         # Enviar a requisição para fazer o upload do arquivo PDF
-        resposta = requests.post(url_upload, headers=cabecalho_autorizacao, data=conteudo_pdf)   
+        resposta = requests.post(url_upload, headers=cabecalho_autorizacao, data=conteudo_pdf)
 
         return {
-            "mensagem": "Os dados do PDF foram gravados com sucesso no Supabase."           
+            "mensagem": "Os dados do PDF foram gravados com sucesso no Supabase.",
+            #"supabase_data": resposta_supabase,
+            "storage_status_code": resposta.status_code
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -68,7 +81,6 @@ def extract_text_from_pdf(pdf_content):
 def extract_header_details(text):
     # Regex para capturar CNPJ, nome da empresa e período
     cnpj_match = re.search(r"CNPJ:\s*(\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2})", text)
-    # A busca agora inicia após os dígitos e uma quebra de linha até encontrar "CNPJ:"
     company_name_match = re.search(r"\n(\d{4}\s.*?)(?=\n\d|\nCNPJ:)", text, re.DOTALL)
     period_match = re.search(r"Período:\s*(\d{2}/\d{2}/\d{4})\s*a\s*(\d{2}/\d{2}/\d{4})", text)
     
