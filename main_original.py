@@ -36,8 +36,7 @@ async def upload_pdf(file: UploadFile = File(None), url: str = Query(None)):
 
         # Extrair texto do PDF
         text = extract_text_from_pdf(conteudo_pdf)
-        last_page_text = extract_last_page_text_from_pdf(conteudo_pdf)
-        cnpj, company_name, report_type, period_start, period_end = extract_header_details(text, last_page_text)
+        cnpj, company_name, report_type, period_start, period_end = extract_header_details(text)
         df = process_text_to_dataframe(text, cnpj, company_name, report_type, period_start, period_end)
         
         # Gravar os dados extraídos em uma tabela do Supabase
@@ -64,6 +63,7 @@ async def upload_pdf(file: UploadFile = File(None), url: str = Query(None)):
 
         return {
             "mensagem": "Os dados do PDF foram gravados com sucesso no Supabase.",
+            #"supabase_data": resposta_supabase,
             "storage_status_code": resposta.status_code
         }
     except Exception as e:
@@ -78,63 +78,32 @@ def extract_text_from_pdf(pdf_content):
     doc.close()
     return text
 
-def extract_last_page_text_from_pdf(pdf_content):
-    doc = fitz.open(stream=pdf_content, filetype="pdf")
-    last_page = doc[-1]  # Obter a última página
-    text = last_page.get_text()
-    doc.close()
-    return text
-
-def extract_header_details(text, last_page_text):
-    # Regex para capturar CNPJ, nome da empresa com código, período
+def extract_header_details(text):
+    # Regex para capturar CNPJ, nome da empresa e período
     cnpj_match = re.search(r"CNPJ:\s*(\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2})", text)
-    company_name_match = re.search(r"(\d{4})\s+([\w\s&-]+(?:LTDA|ME|S/A|SA|EPP|EIRELI))", text, re.IGNORECASE)
+    company_name_match = re.search(r"\n(\d{4}\s.*?)(?=\n\d|\nCNPJ:)", text, re.DOTALL)
     period_match = re.search(r"Período:\s*(\d{2}/\d{2}/\d{4})\s*a\s*(\d{2}/\d{2}/\d{4})", text)
     
     cnpj = cnpj_match.group(1) if cnpj_match else ""
-    company_code = company_name_match.group(1) if company_name_match else ""
-    company_name = company_name_match.group(2).strip() if company_name_match else ""
-    full_company_name = f"{company_code} {company_name}" if company_code else company_name
+    company_name = company_name_match.group(1).strip() if company_name_match else ""
     period_start = period_match.group(1) if period_match else ""
     period_end = period_match.group(2) if period_match else ""
     
-    return cnpj, full_company_name, "Balancete", period_start, period_end
+    return cnpj, company_name, "Balancete", period_start, period_end
 
 def process_text_to_dataframe(text, cnpj, company_name, report_type, period_start, period_end):
-    # Pre-process the text to handle multiline records
-    lines = text.split('\n')
-    combined_lines = []
-    current_line = ""
-    
-    for line in lines:
-        if re.match(r'^\d{1,8}\s', line):
-            if current_line:
-                combined_lines.append(current_line)
-            current_line = line
-        else:
-            current_line += " " + line.strip()
-    
-    if current_line:
-        combined_lines.append(current_line)
-    
-    # Regex pattern to match lines correctly, including lines with parentheses
-    pattern = re.compile(r"(\d{1,8})\s+(S)?\s*([\d\.]+(?:\.\d+)?(?:\s+\d+\.\d+)?\s*[^ \d][^\s\d].*?)\s+([\d\.,\-\(\)]+)\s+([\d\.,\-\(\)]+)\s+([\d\.,\-\(\)]+)\s+([\d\.,\-\(\)]+)")
+    pattern = r"(\d{1,8})\s+(S)?\s*([\d\.]+(?:\.\d+)?\s*[^ \d][^\s\d].*?)\s+([\d\.,]+\s*|\(\s*[\d\.,]+\s*\))\s+([\d\.,]+\s*|\(\s*[\d\.,]+\s*\))\s+([\d\.,]+\s*|\(\s*[\d\.,]+\s*\))\s+([\d\.,]+\s*|\(\s*[\d\.,]+\s*\))"
+    matches = re.findall(pattern, text.replace("\n", " "))
     data = []
-    
-    for line in combined_lines:
-        matches = pattern.findall(line)
-        for match in matches:
-            conta = match[0]
-            s = match[1]
-            classificacao = match[2].strip()
-            saldo_ant = float(match[3].replace(".", "").replace(",", ".").replace("(", "-").replace(")", ""))
-            debito = float(match[4].replace(".", "").replace(",", ".").replace("(", "-").replace(")", ""))
-            credito = float(match[5].replace(".", "").replace(",", ".").replace("(", "-").replace(")", ""))
-            saldo = float(match[6].replace(".", "").replace(",", ".").replace("(", "-").replace(")", ""))
-            
-            data.append([cnpj, company_name, report_type, period_start, period_end, conta, s, classificacao, saldo_ant, debito, credito, saldo])
+    for match in matches:
+        conta, s, classificacao, saldo_ant, debito, credito, saldo = match
+        classificacao = " ".join(classificacao.split())  # Normaliza espaços
+        saldo_ant = float(saldo_ant.replace("(", "-").replace(")", "").replace(".", "").replace(",", "."))
+        debito = float(debito.replace("(", "-").replace(")", "").replace(".", "").replace(",", "."))
+        credito = float(credito.replace("(", "-").replace(")", "").replace(".", "").replace(",", "."))
+        saldo = float(saldo.replace("(", "-").replace(")", "").replace(".", "").replace(",", "."))
+        data.append([cnpj, company_name, report_type, period_start, period_end, conta, s, classificacao, saldo_ant, debito, credito, saldo])
     
     columns = ["cnpj", "company_name", "report_type", "period_start", "period_end", "conta", "ContaSumario", "classificacao", "saldo_ant", "debito", "credito", "saldo"]
     df = pd.DataFrame(data, columns=columns)
-    
     return df
