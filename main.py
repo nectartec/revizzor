@@ -45,7 +45,7 @@ async def upload_pdf(file: UploadFile = File(None), url: str = Query(None)):
         data_dict = df.to_dict(orient='records')
 
         # Inserção dos dados no Supabase
-        supabase.from_(nome_tabela).insert(data_dict).execute()
+        resposta_supabase = supabase.from_(nome_tabela).insert(data_dict).execute()
         
         # Definir o cabeçalho de autorização
         cabecalho_autorizacao = {
@@ -64,6 +64,7 @@ async def upload_pdf(file: UploadFile = File(None), url: str = Query(None)):
 
         return {
             "mensagem": "Os dados do PDF foram gravados com sucesso no Supabase.",
+            "supabase_data": resposta_supabase,
             "storage_status_code":  resposta.status_code
         }
     except Exception as e:
@@ -88,7 +89,8 @@ def extract_last_page_text_from_pdf(pdf_content):
 def extract_header_details(text, last_page_text):
     # Regex para capturar CNPJ, nome da empresa com código, período
     cnpj_match = re.search(r"CNPJ:\s*(\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2})", text)
-    company_name_match = re.search(r"(\d{4})\s+([\w\s&-]+(?:LTDA|ME|S/A|SA|EPP|EIRELI))", text, re.IGNORECASE)
+    #company_name_match = re.search(r"(\d{4})\s+([\w\s&-]+(?:LTDA|ME|S/A|SA|EPP|EIRELI))", text, re.IGNORECASE)
+    company_name_match = re.search(r"(\d{4})\s+(.+?)\s+CNPJ:", text, re.DOTALL)
     period_match = re.search(r"Período:\s*(\d{2}/\d{2}/\d{4})\s*a\s*(\d{2}/\d{2}/\d{4})", text)
     
     cnpj = cnpj_match.group(1) if cnpj_match else ""
