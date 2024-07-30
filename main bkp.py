@@ -10,7 +10,7 @@ app = FastAPI()
 
 # Configurações do Supabase
 supabase_url = "https://mnlopigqtaqafgefsbzc.supabase.co"
-supabase_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ubG9waWdxdGFxYWZnZWZzYnpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTE4Mzk2OTYsImV4cCI6MjAyNzQxNTY5Nn0.gRLXeRUyXbP5kZpAU4IbxBELKvjDPX14VtUfmYXyelY"
+supabase_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ubG9waWdxdGFxYWZnZWZzYnpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTE4Mzk2OTYsImV4cCI6MjAyNzQxNTY5Nn0.gRLXeRUyXbP5kZpAU4IbxBELKvjDPX14VtUfmYXyelY"               
 bucket_name = "revizzor/pdf"
 
 # Criar cliente Supabase
@@ -45,7 +45,7 @@ async def upload_pdf(file: UploadFile = File(None), url: str = Query(None)):
         data_dict = df.to_dict(orient='records')
 
         # Inserção dos dados no Supabase
-        supabase.from_(nome_tabela).insert(data_dict).execute()
+        resposta_supabase = supabase.from_(nome_tabela).insert(data_dict).execute()
         
         # Definir o cabeçalho de autorização
         cabecalho_autorizacao = {
@@ -64,7 +64,7 @@ async def upload_pdf(file: UploadFile = File(None), url: str = Query(None)):
 
         return {
             "mensagem": "Os dados do PDF foram gravados com sucesso no Supabase.",
-            "storage_status_code":  resposta.status_code
+            "storage_status_code": resposta.status_code
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
