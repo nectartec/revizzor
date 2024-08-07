@@ -1,6 +1,7 @@
 fastapi
 uvicorn
-supabase_py  
+supabase_py
+supabase 
 requests
 pandas
 PyMuPDF

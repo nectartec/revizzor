@@ -1,5 +1,5 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query
-from supabase_py import create_client, Client
+from supabase import create_client, Client
 import fitz  # PyMuPDF
 import pandas as pd
 import re
@@ -43,7 +43,14 @@ async def upload_pdf(file: UploadFile = File(None), url: str = Query(None)):
         # Gravar os dados extraídos em uma tabela do Supabase
         nome_tabela = 'balancete'
         data_dict = df.to_dict(orient='records')
-
+        
+        #verificar se existe e deletar para criar notavmente        
+        # Deletar registros onde a condição é atendida
+        condition_field = "period_start"
+        condition_value = period_start
+        condition_field2 = "cnpj"
+        condition_value2 = cnpj
+        resposta_supabase = supabase.from_(nome_tabela).delete().eq(condition_field, condition_value).eq(condition_field2, condition_value2).execute()
         # Inserção dos dados no Supabase
         resposta_supabase = supabase.from_(nome_tabela).insert(data_dict).execute()
         
@@ -63,7 +70,7 @@ async def upload_pdf(file: UploadFile = File(None), url: str = Query(None)):
         resposta = requests.post(url_upload, headers=cabecalho_autorizacao, data=conteudo_pdf)
 
         return {
-            "mensagem": "Os dados do PDF foram gravados com sucesso no Supabase.",
+            "mensagem": "Os dados do PDF foram gravados com sucesso no Revizzor.",
             "supabase_data": resposta_supabase,
             "storage_status_code":  resposta.status_code
         }
