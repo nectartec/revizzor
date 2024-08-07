@@ -1,6 +1,5 @@
 fastapi
 uvicorn
-supabase_py
 supabase 
 requests
 pandas
