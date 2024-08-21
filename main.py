@@ -51,6 +51,7 @@ async def upload_pdf(file: UploadFile = File(None), url: str = Query(None)):
         condition_field2 = "cnpj"
         condition_value2 = cnpj
         resposta_supabase = supabase.from_(nome_tabela).delete().eq(condition_field, condition_value).eq(condition_field2, condition_value2).execute()
+        
         # Inserção dos dados no Supabase
         resposta_supabase = supabase.from_(nome_tabela).insert(data_dict).execute()
         
